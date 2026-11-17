@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Panel Instagram · CicloClub Santiago</title>
+<link rel="icon" href="logo.png">
+<style>
+  :root { --navy:#13234f; --navy2:#1c3270; --sky:#2aa3dc; --ink:#1b2430; --muted:#5b6675; --bg:#eef2f8; --card:#fff; --line:#e1e6ef; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif; background:var(--bg); color:var(--ink); }
+  header { background:var(--navy); color:#fff; padding:12px 16px; display:flex; align-items:center; gap:12px; }
+  header img.logo { width:40px; height:40px; }
+  header h1 { font-size:1.05rem; margin:0; flex:1; }
+  header h1 small { display:block; font-weight:400; opacity:.75; font-size:.78rem; }
+  .who { display:flex; align-items:center; gap:8px; font-size:.9rem; }
+  .who img { width:30px; height:30px; border-radius:50%; background:#fff; }
+  button { font:inherit; border:none; border-radius:8px; padding:9px 14px; cursor:pointer; background:var(--sky); color:#fff; font-weight:600; }
+  button.ghost { background:transparent; border:1px solid rgba(255,255,255,.5); color:#fff; padding:6px 10px; font-weight:500; }
+  button.light { background:#e8f4fb; color:var(--navy); }
+  button:disabled { opacity:.5; cursor:default; }
+  main { max-width:980px; margin:0 auto; padding:16px; }
+  .card { background:var(--card); border-radius:12px; box-shadow:0 1px 6px rgba(0,0,0,.06); }
+  .login { text-align:center; padding:40px 20px; margin-top:24px; }
+  .login img { width:120px; }
+  .login h2 { margin:14px 0 6px; }
+  .login p { color:var(--muted); max-width:520px; margin:8px auto 22px; line-height:1.5; }
+  .igbtn { background:linear-gradient(45deg,#f58529,#dd2a7b,#8134af,#515bd4); font-size:1rem; padding:12px 22px; }
+  .tabs { display:flex; gap:8px; margin-bottom:14px; }
+  .tabs button { background:#fff; color:var(--navy); border:1px solid var(--line); }
+  .tabs button.on { background:var(--navy); color:#fff; border-color:var(--navy); }
+  .split { display:grid; grid-template-columns:300px 1fr; gap:14px; }
+  @media (max-width:720px){ .split { grid-template-columns:1fr; } }
+  .list { max-height:70vh; overflow:auto; }
+  .item { padding:12px 14px; border-bottom:1px solid var(--line); cursor:pointer; }
+  .item:hover, .item.on { background:#f2f7fd; }
+  .item b { display:block; }
+  .item span { color:var(--muted); font-size:.82rem; }
+  .pane { padding:14px; min-height:300px; display:flex; flex-direction:column; }
+  .msgs { flex:1; overflow:auto; max-height:56vh; display:flex; flex-direction:column; gap:8px; padding:4px; }
+  .bub { max-width:75%; padding:8px 12px; border-radius:14px; background:#eef1f6; line-height:1.4; white-space:pre-wrap; word-wrap:break-word; }
+  .bub.me { align-self:flex-end; background:var(--sky); color:#fff; }
+  .bub small { display:block; opacity:.7; font-size:.72rem; margin-top:3px; }
+  .compose { display:flex; gap:8px; margin-top:10px; }
+  .compose input { flex:1; padding:10px 12px; border:1px solid var(--line); border-radius:8px; font:inherit; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:10px; padding:12px; }
+  .post { cursor:pointer; border-radius:10px; overflow:hidden; border:2px solid transparent; background:#f4f6fa; }
+  .post.on { border-color:var(--sky); }
+  .post img { width:100%; aspect-ratio:1; object-fit:cover; display:block; background:#dde3ec; }
+  .post div { padding:6px 8px; font-size:.78rem; color:var(--muted); }
+  .cmt { border-bottom:1px solid var(--line); padding:10px 0; }
+  .cmt .rep { margin:6px 0 0 18px; padding-left:10px; border-left:2px solid var(--line); font-size:.9rem; }
+  .muted { color:var(--muted); }
+  .err { background:#fdecec; color:#9b1c1c; padding:10px 12px; border-radius:8px; margin-bottom:12px; }
+  footer { text-align:center; color:var(--muted); font-size:.8rem; padding:20px; }
+  footer a { color:var(--muted); }
+</style>
+</head>
+<body>
+<header>
+  <img class="logo" src="logo.png" alt="CicloClub Santiago">
+  <h1>Panel Instagram · CicloClub Santiago<small>Mensajes y comentarios del club / Club messages &amp; comments</small></h1>
+  <div class="who" id="who"></div>
+</header>
+<main id="app"></main>
+<footer>CicloClub Santiago · <a href="https://cesarmoraa.github.io/cicloclub-legal/">Privacidad / Privacy</a> · <a href="https://cesarmoraa.github.io/cicloclub-legal/eliminacion-datos.html">Eliminación de datos / Data deletion</a></footer>
+
+<script>
+const API = 'https://citadel.tail5a1eac.ts.net/meta-ig/api';
+const CLIENT_ID = '2197775354133950';
+const REDIRECT = 'https://citadel.tail5a1eac.ts.net/meta-ig/oauth';
+const SCOPES = 'instagram_business_basic,instagram_business_manage_messages,instagram_business_manage_comments';
+const app = document.getElementById('app'), who = document.getElementById('who');
+const store = { get(k){ try { return localStorage.getItem(k); } catch(e){ return null; } },
+                set(k,v){ try { localStorage.setItem(k,v); } catch(e){} },
+                del(k){ try { localStorage.removeItem(k); } catch(e){} } };
+let sid = store.get('ccs_sid'), me = null, tab = 'msgs';
+
+function el(tag, attrs = {}, ...kids) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k === 'on') for (const [ev, fn] of Object.entries(v)) e.addEventListener(ev, fn);
+    else if (k === 'class') e.className = v; else e.setAttribute(k, v);
+  }
+  for (const c of kids.flat()) if (c != null) e.append(c.nodeType ? c : document.createTextNode(String(c)));
+  return e;
+}
+const fmt = t => { try { return new Date(t).toLocaleString('es-CL', { dateStyle: 'short', timeStyle: 'short' }); } catch(e) { return t || ''; } };
+
+async function call(action, extra = {}) {
+  const r = await fetch(API, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ sid, action, ...extra }) });
+  const j = await r.json().catch(() => ({ error: 'respuesta_invalida' }));
+  if (r.status === 401) { logout(true); throw new Error('Sesión expirada / Session expired'); }
+  if (!r.ok || j.error) throw new Error(j.error || ('HTTP ' + r.status));
+  return j;
+}
+
+function login() {
+  const state = Math.random().toString(36).slice(2) + Date.now().toString(36);
+  store.set('ccs_state', state);
+  const q = new URLSearchParams({ force_reauth: 'true', client_id: CLIENT_ID, redirect_uri: REDIRECT, response_type: 'code', scope: SCOPES, state });
+  location.href = 'https://www.instagram.com/oauth/authorize?' + q.toString();
+}
+async function logout(silent) {
+  if (!silent && sid) { try { await call('logout'); } catch(e) {} }
+  sid = null; me = null; store.del('ccs_sid'); renderLogin();
+}
+
+function renderLogin(errMsg) {
+  who.replaceChildren();
+  app.replaceChildren(el('div', { class: 'card login' },
+    el('img', { src: 'logo.png', alt: '' }),
+    el('h2', {}, 'Panel de Instagram del club'),
+    el('p', {}, 'Conecta la cuenta profesional de Instagram del club para ver y responder los mensajes directos y los comentarios de las publicaciones en un solo lugar. ',
+      el('br'), el('span', { class: 'muted' }, 'Connect the club’s Instagram professional account to view and reply to direct messages and post comments in one place.')),
+    errMsg ? el('div', { class: 'err' }, errMsg) : null,
+    el('button', { class: 'igbtn', on: { click: login } }, 'Iniciar sesión con Instagram / Log in with Instagram')));
+}
+
+function renderShell() {
+  who.replaceChildren(
+    me.profile_picture_url ? el('img', { src: me.profile_picture_url, alt: '' }) : null,
+    el('span', {}, '@' + (me.username || '')),
+    el('button', { class: 'ghost', on: { click: () => logout() } }, 'Salir / Log out'));
+  const tabs = el('div', { class: 'tabs' },
+    el('button', { class: tab === 'msgs' ? 'on' : '', on: { click: () => { tab = 'msgs'; renderShell(); } } }, 'Mensajes / Messages'),
+    el('button', { class: tab === 'cmts' ? 'on' : '', on: { click: () => { tab = 'cmts'; renderShell(); } } }, 'Comentarios / Comments'));
+  const body = el('div');
+  app.replaceChildren(tabs, body);
+  (tab === 'msgs' ? renderMessages : renderComments)(body);
+}
+
+async function renderMessages(root) {
+  const list = el('div', { class: 'card list' }, el('div', { class: 'item muted' }, 'Cargando… / Loading…'));
+  const pane = el('div', { class: 'card pane' }, el('p', { class: 'muted' }, 'Elige una conversación / Select a conversation'));
+  root.replaceChildren(el('div', { class: 'split' }, list, pane));
+  try {
+    const r = await call('conversations');
+    const convs = r.data || [];
+    list.replaceChildren(...(convs.length ? convs.map(c => {
+      const other = ((c.participants && c.participants.data) || []).find(p => p.username !== me.username) || {};
+      const it = el('div', { class: 'item', on: { click: () => { [...list.children].forEach(x => x.classList.remove('on')); it.classList.add('on'); openThread(pane, c.id, other); } } },
+        el('b', {}, '@' + (other.username || other.id || '?')), el('span', {}, fmt(c.updated_time)));
+      return it;
+    }) : [el('div', { class: 'item muted' }, 'No hay conversaciones / No conversations')]));
+  } catch (e) { list.replaceChildren(el('div', { class: 'item err' }, e.message)); }
+}
+
+async function openThread(pane, convId, other) {
+  const box = el('div', { class: 'msgs' }, el('p', { class: 'muted' }, 'Cargando… / Loading…'));
+  const input = el('input', { placeholder: 'Escribe una respuesta… / Write a reply…', maxlength: '1000' });
+  const send = el('button', {}, 'Enviar / Send');
+  const status = el('div', { class: 'muted' });
+  pane.replaceChildren(el('b', {}, 'Conversación con @' + (other.username || '?')), box, el('div', { class: 'compose' }, input, send), status);
+  const load = async () => {
+    const r = await call('messages', { id: convId });
+    const msgs = ((r.messages && r.messages.data) || []).slice().reverse();
+    box.replaceChildren(...(msgs.length ? msgs.map(m => {
+      const mine = m.from && (m.from.username === me.username || m.from.id === String(me.user_id));
+      return el('div', { class: 'bub' + (mine ? ' me' : '') }, m.message || '[adjunto / attachment]', el('small', {}, fmt(m.created_time)));
+    }) : [el('p', { class: 'muted' }, 'Sin mensajes / No messages')]));
+    box.scrollTop = box.scrollHeight;
+  };
+  const doSend = async () => {
+    const text = input.value.trim(); if (!text) return;
+    send.disabled = true; status.textContent = 'Enviando… / Sending…';
+    try { await call('send', { to: other.id, text }); input.value = ''; status.textContent = 'Enviado ✓ / Sent ✓'; await load(); }
+    catch (e) { status.textContent = '⚠ ' + e.message; }
+    send.disabled = false;
+  };
+  send.addEventListener('click', doSend);
+  input.addEventListener('keydown', e => { if (e.key === 'Enter') doSend(); });
+  try { await load(); } catch (e) { box.replaceChildren(el('div', { class: 'err' }, e.message)); }
+}
+
+async function renderComments(root) {
+  const grid = el('div', { class: 'card grid' }, el('p', { class: 'muted' }, 'Cargando publicaciones… / Loading posts…'));
+  const pane = el('div', { class: 'card pane', style: 'margin-top:14px' }, el('p', { class: 'muted' }, 'Elige una publicación para ver sus comentarios / Select a post to see its comments'));
+  root.replaceChildren(grid, pane);
+  try {
+    const r = await call('media');
+    const posts = r.data || [];
+    grid.replaceChildren(...(posts.length ? posts.map(p => {
+      const card = el('div', { class: 'post', on: { click: () => { [...grid.children].forEach(x => x.classList.remove('on')); card.classList.add('on'); openComments(pane, p); } } },
+        el('img', { src: p.thumbnail_url || p.media_url || '', alt: '', loading: 'lazy' }),
+        el('div', {}, '💬 ' + (p.comments_count || 0) + ' · ' + fmt(p.timestamp)));
+      return card;
+    }) : [el('p', { class: 'muted' }, 'No hay publicaciones / No posts')]));
+  } catch (e) { grid.replaceChildren(el('div', { class: 'err' }, e.message)); }
+}
+
+async function openComments(pane, post) {
+  const list = el('div', {}, el('p', { class: 'muted' }, 'Cargando… / Loading…'));
+  pane.replaceChildren(el('b', {}, (post.caption || 'Publicación / Post').slice(0, 120)), list);
+  const load = async () => {
+    const r = await call('comments', { id: post.id });
+    const cs = r.data || [];
+    list.replaceChildren(...(cs.length ? cs.map(c => {
+      const input = el('input', { placeholder: 'Responder a @' + (c.username || '') + ' / Reply', maxlength: '1000' });
+      const btn = el('button', { class: 'light' }, 'Responder / Reply');
+      const st = el('span', { class: 'muted' });
+      btn.addEventListener('click', async () => {
+        const text = input.value.trim(); if (!text) return;
+        btn.disabled = true; st.textContent = ' Enviando… / Sending…';
+        try { await call('reply', { id: c.id, text }); st.textContent = ' Respondido ✓ / Replied ✓'; await load(); }
+        catch (e) { st.textContent = ' ⚠ ' + e.message; btn.disabled = false; }
+      });
+      const reps = ((c.replies && c.replies.data) || []).map(rp => el('div', { class: 'rep' }, el('b', {}, '@' + rp.username + ' '), rp.text));
+      return el('div', { class: 'cmt' }, el('b', {}, '@' + (c.username || '?') + ' '), c.text || '', el('small', { class: 'muted' }, ' · ' + fmt(c.timestamp)),
+        ...reps, el('div', { class: 'compose' }, input, btn), st);
+    }) : [el('p', { class: 'muted' }, 'Sin comentarios / No comments')]));
+  };
+  try { await load(); } catch (e) { list.replaceChildren(el('div', { class: 'err' }, e.message)); }
+}
+
+(async function init() {
+  const h = new URLSearchParams(location.hash.slice(1));
+  if (h.has('sid') || h.has('error')) history.replaceState(null, '', location.pathname);
+  if (h.get('error')) { renderLogin('No se pudo conectar / Could not connect: ' + h.get('error')); return; }
+  if (h.get('sid')) {
+    if (h.get('state') !== store.get('ccs_state')) { renderLogin('Estado de sesión inválido, intenta de nuevo / Invalid state, try again.'); return; }
+    sid = h.get('sid'); store.set('ccs_sid', sid); store.del('ccs_state');
+  }
+  if (!sid) { renderLogin(); return; }
+  try { me = await call('me'); renderShell(); }
+  catch (e) { renderLogin(e.message); }
+})();
+</script>
+</body>
+</html>
