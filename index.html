@@ -49,6 +49,8 @@
   .post img { width:100%; aspect-ratio:1; object-fit:cover; display:block; background:#dde3ec; }
   .post div { padding:6px 8px; font-size:.78rem; color:var(--muted); }
   .cmt { border-bottom:1px solid var(--line); padding:10px 0; }
+  .cmt.club { background:#f2f7fd; border-radius:8px; padding:10px 12px; margin:6px 0; }
+  .tag { display:inline-block; background:var(--navy); color:#fff; font-size:.72rem; font-weight:600; padding:2px 8px; border-radius:20px; }
   .cmt .rep { margin:6px 0 0 18px; padding-left:10px; border-left:2px solid var(--line); font-size:.9rem; }
   .muted { color:var(--muted); }
   .err { background:#fdecec; color:#9b1c1c; padding:10px 12px; border-radius:8px; margin-bottom:12px; }
@@ -196,6 +198,11 @@ async function openComments(pane, post) {
     const r = await call('comments', { id: post.id });
     const cs = r.data || [];
     list.replaceChildren(...(cs.length ? cs.map(c => {
+      const mine = c.username && me.username && c.username.toLowerCase() === me.username.toLowerCase();
+      if (mine) {
+        return el('div', { class: 'cmt club' }, el('span', { class: 'tag' }, '🚴 Respuesta del club / Club reply'), ' ', c.text || '',
+          el('small', { class: 'muted' }, ' · ' + fmt(c.timestamp)));
+      }
       const input = el('input', { placeholder: 'Responder a @' + (c.username || '') + ' / Reply', maxlength: '1000' });
       const btn = el('button', { class: 'light' }, 'Responder / Reply');
       const st = el('span', { class: 'muted' });
@@ -205,7 +212,10 @@ async function openComments(pane, post) {
         try { await call('reply', { id: c.id, text }); st.textContent = ' Respondido ✓ / Replied ✓'; await load(); }
         catch (e) { st.textContent = ' ⚠ ' + e.message; btn.disabled = false; }
       });
-      const reps = ((c.replies && c.replies.data) || []).map(rp => el('div', { class: 'rep' }, el('b', {}, '@' + rp.username + ' '), rp.text));
+      const reps = ((c.replies && c.replies.data) || []).map(rp => {
+        const club = rp.username && me.username && rp.username.toLowerCase() === me.username.toLowerCase();
+        return el('div', { class: 'rep' }, club ? el('span', { class: 'tag' }, '🚴 Club') : el('b', {}, '@' + (rp.username || '?')), ' ', rp.text);
+      });
       return el('div', { class: 'cmt' }, el('b', {}, '@' + (c.username || '?') + ' '), c.text || '', el('small', { class: 'muted' }, ' · ' + fmt(c.timestamp)),
         ...reps, el('div', { class: 'compose' }, input, btn), st);
     }) : [el('p', { class: 'muted' }, 'Sin comentarios / No comments')]));
