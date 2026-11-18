@@ -47,6 +47,11 @@
   .post { cursor:pointer; border-radius:10px; overflow:hidden; border:2px solid transparent; background:#f4f6fa; }
   .post.on { border-color:var(--sky); }
   .post img { width:100%; aspect-ratio:1; object-fit:cover; display:block; background:#dde3ec; }
+  .thumb { position:relative; }
+  .pbadge { position:absolute; top:6px; right:6px; font-size:.72rem; font-weight:700; padding:3px 8px; border-radius:20px; box-shadow:0 1px 4px rgba(0,0,0,.25); }
+  .pbadge.pend { background:#f59e0b; color:#fff; } .pbadge.ok { background:#fff; color:#1d7a3a; }
+  .summary { margin:0 0 12px; padding:10px 14px; border-radius:10px; font-weight:600; }
+  .summary.pend { background:#fdebd3; color:#9a5a00; } .summary.ok { background:#e3f6e8; color:#1d7a3a; }
   .post div { padding:6px 8px; font-size:.78rem; color:var(--muted); }
   .cmt { border-bottom:1px solid var(--line); padding:10px 0; }
   .cmt { border:1px solid var(--line); border-radius:10px; padding:12px 14px; margin:10px 0; background:#fff; }
@@ -184,13 +189,20 @@ async function openThread(pane, convId, other) {
 async function renderComments(root) {
   const grid = el('div', { class: 'card grid' }, el('p', { class: 'muted' }, 'Cargando publicaciones… / Loading posts…'));
   const pane = el('div', { class: 'card pane', style: 'margin-top:14px' }, el('p', { class: 'muted' }, 'Elige una publicación para ver sus comentarios / Select a post to see its comments'));
-  root.replaceChildren(grid, pane);
+  const summary = el('p', { class: 'summary' }, '');
+  root.replaceChildren(summary, grid, pane);
   try {
     const r = await call('media');
     const posts = r.data || [];
+    const totalPend = posts.reduce((n, p) => n + (p.pending > 0 ? p.pending : 0), 0);
+    summary.className = 'summary ' + (totalPend ? 'pend' : 'ok');
+    summary.textContent = totalPend ? '⏳ ' + totalPend + ' comentario' + (totalPend > 1 ? 's' : '') + ' sin responder en las últimas publicaciones / unanswered comments'
+                                    : '✅ Todos los comentarios recientes están respondidos / All recent comments answered';
     grid.replaceChildren(...(posts.length ? posts.map(p => {
-      const card = el('div', { class: 'post', on: { click: () => { [...grid.children].forEach(x => x.classList.remove('on')); card.classList.add('on'); openComments(pane, p); } } },
-        el('img', { src: p.thumbnail_url || p.media_url || '', alt: '', loading: 'lazy' }),
+      const badge = p.pending > 0 ? el('span', { class: 'pbadge pend' }, '⏳ ' + p.pending + ' sin responder')
+                  : (p.comments_count ? el('span', { class: 'pbadge ok' }, '✅') : null);
+      const card = el('div', { class: 'post', on: { click: () => { [...grid.children].forEach(x => x.classList.remove('on')); card.classList.add('on'); openComments(pane, p).then(() => {}); } } },
+        el('div', { class: 'thumb' }, el('img', { src: p.thumbnail_url || p.media_url || '', alt: '', loading: 'lazy' }), badge),
         el('div', {}, '💬 ' + (p.comments_count || 0) + ' · ' + fmt(p.timestamp)));
       return card;
     }) : [el('p', { class: 'muted' }, 'No hay publicaciones / No posts')]));
